@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -17,18 +16,18 @@ func main() {
 	}
 
 	lines := strings.Split(string(input), "\n")
-	separator := "   "
 	listA := make([]int, 0, len(lines))
 	listB := make([]int, 0, len(lines))
 
 	for line := range slices.Values(lines) {
-		parts := strings.Split(line, separator)
-		if len(parts) != 2 {
+		if len(line) == 0 {
 			continue
 		}
-
-		itemA, _ := strconv.Atoi(parts[0])
-		itemB, _ := strconv.Atoi(parts[1])
+		var itemA, itemB int
+		_, err := fmt.Sscanf(line, "%d   %d", &itemA, &itemB)
+		if err != nil {
+			panic(fmt.Errorf("error scanning: %w", err))
+		}
 
 		listA = append(listA, itemA)
 		listB = append(listB, itemB)
