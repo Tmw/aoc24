@@ -1,3 +1,3 @@
-module github.com/tmw/aoc24/day_01
+module github.com/tmw/aoc24
 
 go 1.23.3
