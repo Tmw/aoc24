@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"slices"
 	"strconv"
@@ -46,7 +45,7 @@ func allDecrease(deltas []int) bool {
 	return true
 }
 
-func (r Report) IsSafe() bool {
+func valid(r Report) bool {
 	d := deltas(r)
 	if !allIncrease(d) && !allDecrease(d) {
 		return false
@@ -55,15 +54,51 @@ func (r Report) IsSafe() bool {
 	var (
 		maxDelta     = slices.Max(d)
 		minDelta     = slices.Min(d)
-		safeMaxDelta = intAbs(maxDelta) <= 3 && intAbs(maxDelta) >= 1
-		safeMinDelta = intAbs(minDelta) >= 1 && intAbs(minDelta) <= 3
+		safeMaxDelta = abs(maxDelta) <= 3 && abs(maxDelta) >= 1
+		safeMinDelta = abs(minDelta) >= 1 && abs(minDelta) <= 3
 	)
 
 	return safeMaxDelta && safeMinDelta
 }
 
-func intAbs(a int) int {
-	return int(math.Abs(float64(a)))
+func (r Report) IsSafe(dampenerEnabled bool) bool {
+	if valid(r) {
+		return true
+	}
+
+	if !dampenerEnabled {
+		return false
+	}
+
+	for p := range slices.Values(permutations(r)) {
+		if valid(p) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func permutations(r Report) []Report {
+	permutated := make([]Report, 0, len(r))
+
+	for idx := range r {
+		permutated = append(permutated, without(r, idx))
+	}
+
+	return permutated
+}
+
+func without(input Report, idx int) Report {
+	return slices.Concat(input[0:idx], input[idx+1:])
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return a * -1
+	}
+
+	return a
 }
 
 func main() {
@@ -87,12 +122,21 @@ func main() {
 
 	safeReports := 0
 	for report := range slices.Values(reports) {
-		if report.IsSafe() {
+		if report.IsSafe(false) {
 			safeReports += 1
 		}
 	}
 
 	fmt.Println("output part one: ", safeReports)
+
+	safeReports = 0
+	for report := range slices.Values(reports) {
+		if report.IsSafe(true) {
+			safeReports += 1
+		}
+	}
+
+	fmt.Println("output part two: ", safeReports)
 }
 
 func parseReport(line string) Report {
