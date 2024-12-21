@@ -72,7 +72,7 @@ func (g *Grid) Diagonals() iter.Seq[[]byte] {
 		x, y := 0, g.height-1
 		for y >= 0 && x < g.width {
 			if !yield(g.Diagonal(x, y, +1)) {
-				break
+				return
 			}
 
 			if y > 0 {
@@ -86,7 +86,7 @@ func (g *Grid) Diagonals() iter.Seq[[]byte] {
 		x, y = g.width-1, g.height-1
 		for y >= 0 && x >= 0 {
 			if !yield(g.Diagonal(x, y, -1)) {
-				break
+				return
 			}
 
 			if y > 0 {
