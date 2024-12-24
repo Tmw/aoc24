@@ -11,11 +11,6 @@ import (
 	"time"
 )
 
-const (
-	MaxIterationPartOne = 10_000
-	MaxIterationPartTwo = 20_000
-)
-
 func main() {
 	grid, startingPos := parseInput(os.Stdin)
 
@@ -64,16 +59,19 @@ func parseInput(input io.Reader) (Grid, Vector) {
 	return res, startingPos
 }
 
-func partOne(grid Grid, startingPos Vector) ([]Vector, int) {
+func partOne(grid Grid, startingPos Vector) ([]Step, int) {
 	w := Walker{
-		grid:      grid,
-		pos:       startingPos,
-		heading:   HeadingNorth,
-		stepsLeft: MaxIterationPartOne,
+		grid:    grid,
+		pos:     startingPos,
+		heading: HeadingNorth,
 	}
 
-	_, path := w.WalkToCompletion()
-	return path, len(unique(path))
+	path := slices.Collect(w.Walk())
+	coords := make([]Vector, 0, len(path))
+	for _, step := range path {
+		coords = append(coords, step.Pos)
+	}
+	return path, len(unique(coords))
 }
 
 func unique[T comparable](s []T) []T {
@@ -84,33 +82,33 @@ func unique[T comparable](s []T) []T {
 	return slices.Collect(maps.Keys(unique))
 }
 
-func partTwo(grid Grid, startingPos Vector, path []Vector) int {
+func partTwo(grid Grid, startingPos Vector, path []Step) int {
 	var (
 		candidateChan = make(chan Vector)
 		wg            sync.WaitGroup
 	)
 
-	// unbounded concurrency, but we cut the solve time in half =)
-	for _, coord := range slices.Backward(path) {
+	for _, step := range slices.Backward(path) {
 		wg.Add(1)
-		go func(grid Grid, coord Vector) {
+		go func(grid Grid, step Step) {
+			defer wg.Done()
 			g := grid.Clone()
-			g.SetCellAt(coord, CellTypeBlocked)
+			g.SetCellAt(step.Pos, CellTypeBlocked)
 			w := Walker{
-				grid:      g,
-				pos:       startingPos,
-				heading:   HeadingNorth,
-				stepsLeft: MaxIterationPartTwo,
+				grid:    g,
+				pos:     startingPos,
+				heading: HeadingNorth,
 			}
 
-			condition, _ := w.WalkToCompletion()
-			if condition == StepResultsExhaustedMaxSteps {
-				// steps exhausted, likely infinite loop
-				candidateChan <- coord
+			walked := map[Step]struct{}{}
+			for woot := range w.Walk() {
+				if _, found := walked[woot]; found {
+					candidateChan <- step.Pos
+					return
+				}
+				walked[woot] = struct{}{}
 			}
-
-			wg.Done()
-		}(grid, coord)
+		}(grid, step)
 	}
 
 	candidates := []Vector{}
