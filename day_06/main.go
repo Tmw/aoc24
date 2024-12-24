@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,9 @@ func main() {
 	path, numUniqueLocs := partOne(grid, startingPos)
 	fmt.Println("Answer part one = ", numUniqueLocs)
 	fmt.Println("Answer part two = ", partTwo(grid, startingPos, path))
+
+	duration := time.Since(start)
+	fmt.Println("found answer in", duration)
 }
 
 func parseInput(input io.Reader) (Grid, Vector) {
@@ -81,24 +85,42 @@ func unique[T comparable](s []T) []T {
 }
 
 func partTwo(grid Grid, startingPos Vector, path []Vector) int {
-	candidates := []Vector{}
+	var (
+		candidateChan = make(chan Vector)
+		wg            sync.WaitGroup
+	)
 
+	// unbounded concurrency, but we cut the solve time in half =)
 	for _, coord := range slices.Backward(path) {
-		g := grid.Clone()
-		g.SetCellAt(coord, CellTypeBlocked)
-		w := Walker{
-			grid:      g,
-			pos:       startingPos,
-			heading:   HeadingNorth,
-			stepsLeft: MaxIterationPartTwo,
-		}
+		wg.Add(1)
+		go func(grid Grid, coord Vector) {
+			g := grid.Clone()
+			g.SetCellAt(coord, CellTypeBlocked)
+			w := Walker{
+				grid:      g,
+				pos:       startingPos,
+				heading:   HeadingNorth,
+				stepsLeft: MaxIterationPartTwo,
+			}
 
-		condition, _ := w.WalkToCompletion()
-		if condition == StepResultsExhaustedMaxSteps {
-			// infinite loop detected,..
-			candidates = append(candidates, coord)
-		}
+			condition, _ := w.WalkToCompletion()
+			if condition == StepResultsExhaustedMaxSteps {
+				// steps exhausted, likely infinite loop
+				candidateChan <- coord
+			}
+
+			wg.Done()
+		}(grid, coord)
 	}
 
+	candidates := []Vector{}
+	go func() {
+		for coord := range candidateChan {
+			candidates = append(candidates, coord)
+		}
+	}()
+
+	wg.Wait()
+	close(candidateChan)
 	return len(unique(candidates))
 }
