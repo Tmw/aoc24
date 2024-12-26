@@ -52,6 +52,21 @@ func solve(equations []Equation, availableOps []Op) int {
 	return sum
 }
 
+// intCat concatenates two integers by multiplying A by 10 N times
+// where N is the number of digits in B.
+//
+// Example:
+// 10 cat 9 is done in the following way:
+// 10 * (10 * 1) (*1 as 9 is 1 digit) = 100
+// 100 + 9 = 109
+func intCat(a, b int) int {
+	for bCopy := b; bCopy > 0; bCopy /= 10 {
+		a *= 10
+	}
+
+	return a + b
+}
+
 func check(target, total int, nums []int, ops []Op) bool {
 	if len(nums) == 0 {
 		return total == target
@@ -69,7 +84,6 @@ func check(target, total int, nums []int, ops []Op) bool {
 	for _, op := range ops {
 		switch op {
 		case OpMul:
-			// check multiplication
 			if check(target, total*num, rest, ops) {
 				return true
 			}
@@ -80,8 +94,7 @@ func check(target, total int, nums []int, ops []Op) bool {
 			}
 
 		case OpCat:
-			catted, _ := strconv.Atoi(fmt.Sprintf("%d%d", total, num))
-			if check(target, catted, rest, ops) {
+			if check(target, intCat(total, num), rest, ops) {
 				return true
 			}
 		}
@@ -132,5 +145,4 @@ func profile(label string) func() {
 	return func() {
 		fmt.Printf("profile %s took %+v\n", label, time.Since(start))
 	}
-
 }
