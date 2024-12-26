@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -30,65 +29,65 @@ type Equation struct {
 	Parts []int
 }
 
-func (e *Equation) Validate(opSeq []Op) bool {
-	sum := 0
-	for idx, part := range e.Parts {
-		if idx == 0 {
-			// no need for special operator for first part.
-			// simply using addition so the number doesn't get lost.
-			sum += part
-			continue
-		}
-
-		switch opSeq[idx-1] {
-		case OpMul:
-			sum *= part
-
-		case OpAdd:
-			sum += part
-
-		case OpCat:
-			combined := fmt.Sprintf("%d%d", sum, part)
-			res, err := strconv.Atoi(combined)
-			if err != nil {
-				panic(fmt.Errorf("error parsing '%s' as int: %w", combined, err))
-			}
-			sum = res
-		}
-	}
-
-	return sum == e.Sum
-}
-
 func main() {
 	equations := parseInput(os.Stdin)
+
+	p1Stop := profile("part one")
 	fmt.Println("answer part one =", solve(equations, AvailableOps[0:2]))
+	p1Stop()
+
+	p2Stop := profile("part two")
 	fmt.Println("answer part two =", solve(equations, AvailableOps))
+	p2Stop()
 }
 
 func solve(equations []Equation, availableOps []Op) int {
-	var (
-		opsPermCache = map[int][][]Op{}
-		sum          = 0
-	)
-
+	sum := 0
 	for _, eq := range equations {
-		var ops [][]Op
-		ops, found := opsPermCache[len(eq.Parts)-1]
-		if !found {
-			ops = permutations(len(eq.Parts)-1, availableOps)
-			opsPermCache[len(eq.Parts)-1] = ops
-		}
-
-		for _, opSeq := range ops {
-			if eq.Validate(opSeq) {
-				sum += eq.Sum
-				break
-			}
+		if check(eq.Sum, 0, eq.Parts, availableOps) {
+			sum += eq.Sum
 		}
 	}
 
 	return sum
+}
+
+func check(target, total int, nums []int, ops []Op) bool {
+	if len(nums) == 0 {
+		return total == target
+	}
+
+	if total > target {
+		return false
+	}
+
+	var (
+		num  = nums[0]
+		rest = nums[1:]
+	)
+
+	for _, op := range ops {
+		switch op {
+		case OpMul:
+			// check multiplication
+			if check(target, total*num, rest, ops) {
+				return true
+			}
+
+		case OpAdd:
+			if check(target, total+num, rest, ops) {
+				return true
+			}
+
+		case OpCat:
+			catted, _ := strconv.Atoi(fmt.Sprintf("%d%d", total, num))
+			if check(target, catted, rest, ops) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func parseInput(input io.Reader) []Equation {
@@ -128,27 +127,10 @@ func parseInput(input io.Reader) []Equation {
 	return output
 }
 
-func permutations(length int, options []Op) [][]Op {
-	var (
-		n       = len(options)
-		total   = pow(len(options), length)
-		results [][]Op
-	)
-
-	for i := 0; i < total; i++ {
-		var permutation []Op
-		num := i // Current number in base-n
-		for j := 0; j < length; j++ {
-			optionIndex := num % n
-			permutation = append([]Op{options[optionIndex]}, permutation...)
-			num /= n
-		}
-		results = append(results, permutation)
+func profile(label string) func() {
+	start := time.Now()
+	return func() {
+		fmt.Printf("profile %s took %+v\n", label, time.Since(start))
 	}
 
-	return results
-}
-
-func pow(a, b int) int {
-	return int(math.Pow(float64(a), float64(b)))
 }
