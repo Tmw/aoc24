@@ -22,6 +22,27 @@ type Blocks struct {
 	list *list.List
 }
 
+func (b *Blocks) Clone() Blocks {
+	res := Blocks{
+		list: list.New(),
+	}
+
+	for node := b.list.Front(); node != nil; node = node.Next() {
+		b, ok := node.Value.(*Block)
+		if !ok {
+			continue
+		}
+
+		res.list.PushBack(&Block{
+			Typ:  b.Typ,
+			ID:   b.ID,
+			Size: b.Size,
+		})
+	}
+
+	return res
+}
+
 func (b *Blocks) String() string {
 	var res strings.Builder
 	for node := b.list.Front(); node != nil; node = node.Next() {
@@ -44,9 +65,9 @@ func (b *Blocks) String() string {
 	return res.String()
 }
 
-func (b *Blocks) FindBlockOfTypeFromFront(typ BlockType) (*list.Element, *Block, int) {
+func (b *Blocks) FindBlockOfTypeAfter(typ BlockType, elm *list.Element) (*list.Element, *Block, int) {
 	var idx int
-	for node := b.list.Front(); node != nil; node = node.Next() {
+	for node := elm; node != nil; node = node.Next() {
 		idx++
 		n, ok := node.Value.(*Block)
 		if !ok {
@@ -63,9 +84,9 @@ func (b *Blocks) FindBlockOfTypeFromFront(typ BlockType) (*list.Element, *Block,
 	return nil, nil, -1
 }
 
-func (b *Blocks) FindBlockOfTypeFromBack(typ BlockType) (*list.Element, *Block, int) {
+func (b *Blocks) FindBlockOfTypeBefore(typ BlockType, elm *list.Element) (*list.Element, *Block, int) {
 	var idx = b.list.Len()
-	for node := b.list.Back(); node != nil; node = node.Prev() {
+	for node := elm; node != nil; node = node.Prev() {
 		idx--
 		n, ok := node.Value.(*Block)
 		if !ok {
@@ -91,10 +112,13 @@ func (b *Blocks) Checksum() int {
 	for node := b.list.Front(); node != nil; node = node.Next() {
 		b, ok := node.Value.(*Block)
 		if !ok {
+			// fmt.Println("typecast failed", node.Value)
 			continue
 		}
 
-		if b.Typ != BlockTypeFile {
+		if b.Typ == BlockTypeFree {
+			// fmt.Println("block type not file, skipping")
+			idx += int(b.Size)
 			continue
 		}
 
@@ -107,10 +131,71 @@ func (b *Blocks) Checksum() int {
 	return sum
 }
 
+func (b *Blocks) CompactWithoutFragmentation() {
+	var (
+		fileElm   = b.list.Back()
+		fileBlock *Block
+	)
+
+	for {
+		fileElm, fileBlock, _ = b.FindBlockOfTypeBefore(BlockTypeFile, fileElm)
+		if fileElm == nil {
+			break
+		}
+
+		var freeIdx int
+		for node := b.list.Front(); node != nil; node = node.Next() {
+			freeIdx++
+
+			// break off search for a suitable free spot once we hit the
+			// fileElm - this means we're in the middle. Since file blocks should only move left,
+			// we should break off the search here.
+			if node == fileElm {
+				fileElm = fileElm.Prev()
+				break
+			}
+
+			freeBlock, ok := node.Value.(*Block)
+			if !ok {
+				continue
+			}
+
+			if freeBlock.Typ != BlockTypeFree {
+				continue
+			}
+
+			// file bigger than free space, continue search
+			if fileBlock.Size > freeBlock.Size {
+				continue
+			}
+
+			if fileBlock.Size == freeBlock.Size {
+				newNodePos := fileElm.Next()
+				b.list.MoveBefore(fileElm, node)
+				b.list.MoveBefore(node, newNodePos)
+				fileElm = newNodePos
+				break
+			}
+
+			if fileBlock.Size < freeBlock.Size {
+				newNodePos := b.list.InsertBefore(&Block{
+					Typ:  BlockTypeFree,
+					Size: fileBlock.Size,
+				}, fileElm)
+				b.list.MoveBefore(fileElm, node)
+				freeBlock.Size -= fileBlock.Size
+
+				fileElm = newNodePos
+				break
+			}
+		}
+	}
+}
+
 func (b *Blocks) CompactWithFragmentation() {
 	for {
-		freeElm, freeBlock, freeIdx := b.FindBlockOfTypeFromFront(BlockTypeFree)
-		fileElm, fileBlock, fileIdx := b.FindBlockOfTypeFromBack(BlockTypeFile)
+		freeElm, freeBlock, freeIdx := b.FindBlockOfTypeAfter(BlockTypeFree, b.list.Front())
+		fileElm, fileBlock, fileIdx := b.FindBlockOfTypeBefore(BlockTypeFile, b.list.Back())
 
 		// exit the loop as soon as the first free block is past the first file block.
 		if freeIdx > fileIdx {
@@ -172,12 +257,22 @@ func partOne(blocks Blocks) int {
 	return blocks.Checksum()
 }
 
+func partTwo(blocks Blocks) int {
+	blocks.CompactWithoutFragmentation()
+	return blocks.Checksum()
+}
+
 func main() {
 	blocks := parseInput(os.Stdin)
+	blocks2 := blocks.Clone()
 
 	start := time.Now()
 	fmt.Println("answer part one =", partOne(blocks))
 	fmt.Printf("part one took %+v\n", time.Since(start))
+
+	start = time.Now()
+	fmt.Println("answer part two =", partTwo(blocks2))
+	fmt.Printf("part two took %+v\n", time.Since(start))
 }
 
 func parseInput(input io.Reader) Blocks {
