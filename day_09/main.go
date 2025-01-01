@@ -50,7 +50,6 @@ func (b *Blocks) FindBlockOfTypeFromFront(typ BlockType) (*list.Element, *Block,
 		idx++
 		n, ok := node.Value.(*Block)
 		if !ok {
-			fmt.Println("not correct typecast")
 			return nil, nil, -1
 		}
 
