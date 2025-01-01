@@ -108,7 +108,7 @@ func (b *Blocks) Checksum() int {
 	return sum
 }
 
-func (b *Blocks) Compact() {
+func (b *Blocks) CompactWithFragmentation() {
 	for {
 		freeElm, freeBlock, freeIdx := b.FindBlockOfTypeFromFront(BlockTypeFree)
 		fileElm, fileBlock, fileIdx := b.FindBlockOfTypeFromBack(BlockTypeFile)
@@ -129,31 +129,35 @@ func (b *Blocks) Compact() {
 			// - We insert a "file" block before the "free" block,
 			// - We set the FileID to the same file ID we found near the end,
 			// - We set the Size to the original file size - free space.
-			// - We remove the original "free" block.
+			// - We move the original "free" block to the end
 			b.list.InsertBefore(&Block{
 				Typ:  BlockTypeFile,
 				ID:   fileBlock.ID,
 				Size: freeBlock.Size,
 			}, freeElm)
 			fileBlock.Size -= freeBlock.Size
-			b.list.Remove(freeElm)
+			b.list.MoveToBack(freeElm)
 
 		case freeBlock.Size > fileBlock.Size:
 			// Free space is bigger than file size
 			// --------------------------------
 			// - Move the "file" block before the "free" block
 			// - Update the "free" block to its original size - file size.
+			// - append new free space towards the end
 			b.list.MoveBefore(fileElm, freeElm)
 			freeBlock.Size -= fileBlock.Size
+			b.list.PushBack(&Block{
+				Typ:  BlockTypeFree,
+				Size: fileBlock.Size,
+			})
 
 		case freeBlock.Size == fileBlock.Size:
 			// File size and free space are exactly the same.
 			// --------------------------------
 			// - Move the "file" block before the "free" block
-			// - Delete the free block.
-
+			// - Move the "free" block towards the end
 			b.list.MoveBefore(fileElm, freeElm)
-			b.list.Remove(freeElm)
+			b.list.MoveToBack(freeElm)
 		}
 	}
 }
@@ -165,7 +169,7 @@ type Block struct {
 }
 
 func partOne(blocks Blocks) int {
-	blocks.Compact()
+	blocks.CompactWithFragmentation()
 	return blocks.Checksum()
 }
 
