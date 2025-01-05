@@ -17,12 +17,17 @@ var (
 	NeighbourSouth = Vector{X: 0, Y: 1}
 	NeighbourWest  = Vector{X: -1, Y: 0}
 
-	NeighbouringDirections = []Vector{
+	OrthogonalNeighbouringDirections = []Vector{
 		NeighbourNorth,
 		NeighbourEast,
 		NeighbourSouth,
 		NeighbourWest,
 	}
+
+	NeighbourNorthEast = NeighbourNorth.Add(NeighbourEast)
+	NeighbourSouthEast = NeighbourSouth.Add(NeighbourEast)
+	NeighbourSouthWest = NeighbourNorth.Add(NeighbourWest)
+	NeighbourNorthWest = NeighbourSouth.Add(NeighbourWest)
 )
 
 type Grid struct {
@@ -54,7 +59,7 @@ func (g *Grid) Print() {
 
 func (g *Grid) NeighboursOfType(pos Vector, typ byte) []Vector {
 	var neighbours []Vector
-	for _, dir := range NeighbouringDirections {
+	for _, dir := range OrthogonalNeighbouringDirections {
 		newPos := pos.Add(dir)
 		if g.WithinBounds(newPos) && g.At(newPos) == typ {
 			neighbours = append(neighbours, newPos)
@@ -82,9 +87,13 @@ func (c Cluster) Area() int {
 }
 
 func (c Cluster) Sides(g Grid) int {
+	var total int
 	// come up with an algorithm to determine the number of sides of the cluster.
+	for _, loc := range c {
 
-	return 0
+	}
+
+	return total
 }
 
 func (c Cluster) Perimeter(g Grid) int {
