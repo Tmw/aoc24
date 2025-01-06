@@ -23,11 +23,6 @@ var (
 		NeighbourSouth,
 		NeighbourWest,
 	}
-
-	NeighbourNorthEast = NeighbourNorth.Add(NeighbourEast)
-	NeighbourSouthEast = NeighbourSouth.Add(NeighbourEast)
-	NeighbourSouthWest = NeighbourNorth.Add(NeighbourWest)
-	NeighbourNorthWest = NeighbourSouth.Add(NeighbourWest)
 )
 
 type Grid struct {
@@ -39,6 +34,10 @@ type Borders uint8
 
 func (b Borders) HasBorder(border Borders) bool {
 	return b&border > 0
+}
+
+func (b Borders) HasBorders(borders Borders) bool {
+	return b&borders == borders
 }
 
 const (
@@ -124,84 +123,71 @@ func (c Cluster) Area() int {
 	return len(c)
 }
 
+// Side detection algorithm
+// ==========================================================================
+//
+// by counting the number of 90 degree corners,
+// we determine the amount of sides.
+//
+// because we're dealing with a grid corners can either be outside or inside.
+// detecting the outside corners is easy: if we have two borders that connect,
+// we have a border in that spot. Eg; if a grid has a north and east border set,
+// we treat it as a corner.
+//
+// the second class of corners is the ones that are on the inside:
+//
+// EEE  or EEE   both the first and last E on this line have an inside corner.
+// EXX     XXE
+//
+// we detect this corner by also looking at the neighbours directly adjecent,
+// as well as the neighbours one spot diagonally. We expect the direct neighbours
+// to be of the same type, whereas the neighbour diagonally from it should be different.
+//
+// summing up all the corners we detected will give us the amount of sides.
 func (c Cluster) Sides(g Grid) int {
 	var total int
+
+	// describing the outer corners by checking combination of borders set
+	cornerChecks := []Borders{
+		BordersNorth | BordersEast,
+		BordersEast | BordersSouth,
+		BordersSouth | BordersWest,
+		BordersWest | BordersNorth,
+	}
+
+	checkInnerCorner := func(loc, dirA, dirB Vector, expectedTyp byte) bool {
+		a := loc.Add(dirA)
+		b := loc.Add(dirB)
+		c := loc.Add(dirA.Add(dirB))
+
+		return g.WithinBounds(a) && g.At(a) == expectedTyp &&
+			g.WithinBounds(b) && g.At(b) == expectedTyp &&
+			g.WithinBounds(c) && g.At(c) != expectedTyp
+	}
 
 	for _, coord := range c {
 		selfTyp := g.At(coord)
 		borders := g.BordersAt(coord)
-		// fmt.Printf("- checking coord: %+v: borders: %b\n", coord, borders)
 
-		// if we have two connected borders, we have a corner.
-		// this only detects corners on the outside.
+		for _, b := range cornerChecks {
+			if borders.HasBorders(b) {
+				total++
+			}
+		}
 
-		// test northeast corner
-		if borders.HasBorder(BordersNorth) && borders.HasBorder(BordersEast) {
+		if checkInnerCorner(coord, NeighbourSouth, NeighbourEast, selfTyp) {
 			total++
 		}
 
-		// test southeast corner
-		if borders.HasBorder(BordersEast) && borders.HasBorder(BordersSouth) {
+		if checkInnerCorner(coord, NeighbourNorth, NeighbourEast, selfTyp) {
 			total++
 		}
 
-		// test southwest corner
-		if borders.HasBorder(BordersSouth) && borders.HasBorder(BordersWest) {
+		if checkInnerCorner(coord, NeighbourSouth, NeighbourWest, selfTyp) {
 			total++
 		}
 
-		// test northwest corner
-		if borders.HasBorder(BordersWest) && borders.HasBorder(BordersNorth) {
-			total++
-		}
-
-		// but that's not all, we also need to detect corners on the inside of the shape,
-		// that logic is a bit more convoluted as we'll need to check the neighbours too.
-
-		// detect:
-		// EEE <- first E has a corner bottom-right of the first E
-		// EXX
-
-		northNeighbour := coord.Add(NeighbourNorth)
-		eastNeighbour := coord.Add(NeighbourEast)
-		southNeighbour := coord.Add(NeighbourSouth)
-		westNeighbour := coord.Add(NeighbourWest)
-
-		northEastNeighbour := coord.Add(NeighbourNorthEast)
-		southEastNeighbour := coord.Add(NeighbourSouthEast)
-		southWestNeighbour := coord.Add(NeighbourSouthWest)
-		northWestNeighbour := coord.Add(NeighbourNorthWest)
-
-		if g.WithinBounds(southNeighbour) && g.At(southNeighbour) == selfTyp &&
-			g.WithinBounds(eastNeighbour) && g.At(eastNeighbour) == selfTyp &&
-			g.WithinBounds(southEastNeighbour) && g.At(southEastNeighbour) != selfTyp {
-			total++
-		}
-
-		// detect:
-		// EXX
-		// EEE <- first E has a corner top-right of the first E
-		if g.WithinBounds(northNeighbour) && g.At(northNeighbour) == selfTyp &&
-			g.WithinBounds(eastNeighbour) && g.At(eastNeighbour) == selfTyp &&
-			g.WithinBounds(northEastNeighbour) && g.At(northEastNeighbour) != selfTyp {
-			total++
-		}
-
-		// detect:
-		// EEE <- last E has a corner bottom-left of the last E
-		// XXE
-		if g.WithinBounds(southNeighbour) && g.At(southNeighbour) == selfTyp &&
-			g.WithinBounds(westNeighbour) && g.At(westNeighbour) == selfTyp &&
-			g.WithinBounds(southWestNeighbour) && g.At(southWestNeighbour) != selfTyp {
-			total++
-		}
-
-		// detect:
-		// XXE
-		// EEE <- last E has a corner top-left of the last E
-		if g.WithinBounds(northNeighbour) && g.At(northNeighbour) == selfTyp &&
-			g.WithinBounds(westNeighbour) && g.At(westNeighbour) == selfTyp &&
-			g.WithinBounds(northWestNeighbour) && g.At(northWestNeighbour) != selfTyp {
+		if checkInnerCorner(coord, NeighbourNorth, NeighbourWest, selfTyp) {
 			total++
 		}
 	}
@@ -328,11 +314,7 @@ func partOne(grid Grid, clusters []Cluster) int {
 func partTwo(grid Grid, clusters []Cluster) int {
 	total := 0
 	for _, c := range clusters {
-		typ := grid.At(c[0])
-		fmt.Printf("======[ cluster %s ]========\n", string(typ))
-		sides := c.Sides(grid)
-		fmt.Printf(" - cluster %s => sides: %d\n", string(typ), sides)
-		total += c.Area() * sides
+		total += c.Area() * c.Sides(grid)
 	}
 
 	return total
