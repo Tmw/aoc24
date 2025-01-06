@@ -23,17 +23,54 @@ var (
 		NeighbourSouth,
 		NeighbourWest,
 	}
-
-	NeighbourNorthEast = NeighbourNorth.Add(NeighbourEast)
-	NeighbourSouthEast = NeighbourSouth.Add(NeighbourEast)
-	NeighbourSouthWest = NeighbourNorth.Add(NeighbourWest)
-	NeighbourNorthWest = NeighbourSouth.Add(NeighbourWest)
 )
 
 type Grid struct {
 	Tiles  []byte
 	Width  int
 	Height int
+}
+type Borders uint8
+
+func (b Borders) HasBorder(border Borders) bool {
+	return b&border > 0
+}
+
+func (b Borders) HasBorders(borders Borders) bool {
+	return b&borders == borders
+}
+
+const (
+	BordersNorth = Borders(1 << iota)
+	BordersEast
+	BordersSouth
+	BordersWest
+)
+
+func (g *Grid) BordersAt(loc Vector) Borders {
+	var b Borders
+	selfTyp := g.At(loc)
+
+	for _, dir := range OrthogonalNeighbouringDirections {
+		neighbourLoc := loc.Add(dir)
+		if !g.WithinBounds(neighbourLoc) || g.At(neighbourLoc) != selfTyp {
+			switch dir {
+			case NeighbourNorth:
+				b ^= BordersNorth
+
+			case NeighbourEast:
+				b ^= BordersEast
+
+			case NeighbourSouth:
+				b ^= BordersSouth
+
+			case NeighbourWest:
+				b ^= BordersWest
+			}
+		}
+	}
+
+	return b
 }
 
 func (g *Grid) WithinBounds(pos Vector) bool {
@@ -86,11 +123,73 @@ func (c Cluster) Area() int {
 	return len(c)
 }
 
+// Side detection algorithm
+// ==========================================================================
+//
+// by counting the number of 90 degree corners,
+// we determine the amount of sides.
+//
+// because we're dealing with a grid corners can either be outside or inside.
+// detecting the outside corners is easy: if we have two borders that connect,
+// we have a border in that spot. Eg; if a grid has a north and east border set,
+// we treat it as a corner.
+//
+// the second class of corners is the ones that are on the inside:
+//
+// EEE  or EEE   both the first and last E on this line have an inside corner.
+// EXX     XXE
+//
+// we detect this corner by also looking at the neighbours directly adjecent,
+// as well as the neighbours one spot diagonally. We expect the direct neighbours
+// to be of the same type, whereas the neighbour diagonally from it should be different.
+//
+// summing up all the corners we detected will give us the amount of sides.
 func (c Cluster) Sides(g Grid) int {
 	var total int
-	// come up with an algorithm to determine the number of sides of the cluster.
-	for _, loc := range c {
 
+	// describing the outer corners by checking combination of borders set
+	cornerChecks := []Borders{
+		BordersNorth | BordersEast,
+		BordersEast | BordersSouth,
+		BordersSouth | BordersWest,
+		BordersWest | BordersNorth,
+	}
+
+	checkInnerCorner := func(loc, dirA, dirB Vector, expectedTyp byte) bool {
+		a := loc.Add(dirA)
+		b := loc.Add(dirB)
+		c := loc.Add(dirA.Add(dirB))
+
+		return g.WithinBounds(a) && g.At(a) == expectedTyp &&
+			g.WithinBounds(b) && g.At(b) == expectedTyp &&
+			g.WithinBounds(c) && g.At(c) != expectedTyp
+	}
+
+	for _, coord := range c {
+		selfTyp := g.At(coord)
+		borders := g.BordersAt(coord)
+
+		for _, b := range cornerChecks {
+			if borders.HasBorders(b) {
+				total++
+			}
+		}
+
+		if checkInnerCorner(coord, NeighbourSouth, NeighbourEast, selfTyp) {
+			total++
+		}
+
+		if checkInnerCorner(coord, NeighbourNorth, NeighbourEast, selfTyp) {
+			total++
+		}
+
+		if checkInnerCorner(coord, NeighbourSouth, NeighbourWest, selfTyp) {
+			total++
+		}
+
+		if checkInnerCorner(coord, NeighbourNorth, NeighbourWest, selfTyp) {
+			total++
+		}
 	}
 
 	return total
