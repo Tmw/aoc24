@@ -35,6 +35,44 @@ type Grid struct {
 	Width  int
 	Height int
 }
+type Borders uint8
+
+func (b Borders) HasBorder(border Borders) bool {
+	return b&border > 0
+}
+
+const (
+	BordersNorth = Borders(1 << iota)
+	BordersEast
+	BordersSouth
+	BordersWest
+)
+
+func (g *Grid) BordersAt(loc Vector) Borders {
+	var b Borders
+	selfTyp := g.At(loc)
+
+	for _, dir := range OrthogonalNeighbouringDirections {
+		neighbourLoc := loc.Add(dir)
+		if !g.WithinBounds(neighbourLoc) || g.At(neighbourLoc) != selfTyp {
+			switch dir {
+			case NeighbourNorth:
+				b ^= BordersNorth
+
+			case NeighbourEast:
+				b ^= BordersEast
+
+			case NeighbourSouth:
+				b ^= BordersSouth
+
+			case NeighbourWest:
+				b ^= BordersWest
+			}
+		}
+	}
+
+	return b
+}
 
 func (g *Grid) WithinBounds(pos Vector) bool {
 	return pos.X >= 0 && pos.Y >= 0 &&
@@ -88,9 +126,84 @@ func (c Cluster) Area() int {
 
 func (c Cluster) Sides(g Grid) int {
 	var total int
-	// come up with an algorithm to determine the number of sides of the cluster.
-	for _, loc := range c {
 
+	for _, coord := range c {
+		selfTyp := g.At(coord)
+		borders := g.BordersAt(coord)
+		// fmt.Printf("- checking coord: %+v: borders: %b\n", coord, borders)
+
+		// if we have two connected borders, we have a corner.
+		// this only detects corners on the outside.
+
+		// test northeast corner
+		if borders.HasBorder(BordersNorth) && borders.HasBorder(BordersEast) {
+			total++
+		}
+
+		// test southeast corner
+		if borders.HasBorder(BordersEast) && borders.HasBorder(BordersSouth) {
+			total++
+		}
+
+		// test southwest corner
+		if borders.HasBorder(BordersSouth) && borders.HasBorder(BordersWest) {
+			total++
+		}
+
+		// test northwest corner
+		if borders.HasBorder(BordersWest) && borders.HasBorder(BordersNorth) {
+			total++
+		}
+
+		// but that's not all, we also need to detect corners on the inside of the shape,
+		// that logic is a bit more convoluted as we'll need to check the neighbours too.
+
+		// detect:
+		// EEE <- first E has a corner bottom-right of the first E
+		// EXX
+
+		northNeighbour := coord.Add(NeighbourNorth)
+		eastNeighbour := coord.Add(NeighbourEast)
+		southNeighbour := coord.Add(NeighbourSouth)
+		westNeighbour := coord.Add(NeighbourWest)
+
+		northEastNeighbour := coord.Add(NeighbourNorthEast)
+		southEastNeighbour := coord.Add(NeighbourSouthEast)
+		southWestNeighbour := coord.Add(NeighbourSouthWest)
+		northWestNeighbour := coord.Add(NeighbourNorthWest)
+
+		if g.WithinBounds(southNeighbour) && g.At(southNeighbour) == selfTyp &&
+			g.WithinBounds(eastNeighbour) && g.At(eastNeighbour) == selfTyp &&
+			g.WithinBounds(southEastNeighbour) && g.At(southEastNeighbour) != selfTyp {
+			total++
+		}
+
+		// detect:
+		// EXX
+		// EEE <- first E has a corner top-right of the first E
+		if g.WithinBounds(northNeighbour) && g.At(northNeighbour) == selfTyp &&
+			g.WithinBounds(eastNeighbour) && g.At(eastNeighbour) == selfTyp &&
+			g.WithinBounds(northEastNeighbour) && g.At(northEastNeighbour) != selfTyp {
+			total++
+		}
+
+		// detect:
+		// EEE <- last E has a corner bottom-left of the last E
+		// XXE
+		if g.WithinBounds(southNeighbour) && g.At(southNeighbour) == selfTyp &&
+			g.WithinBounds(westNeighbour) && g.At(westNeighbour) == selfTyp &&
+			g.WithinBounds(southWestNeighbour) && g.At(southWestNeighbour) != selfTyp {
+			total++
+		}
+
+		// detect:
+		// XXE
+		// EEE <- last E has a corner top-left of the last E
+		if g.WithinBounds(northNeighbour) && g.At(northNeighbour) == selfTyp &&
+			g.WithinBounds(westNeighbour) && g.At(westNeighbour) == selfTyp &&
+			g.WithinBounds(northWestNeighbour) && g.At(northWestNeighbour) != selfTyp {
+			total++
+		}
 	}
 
 	return total
@@ -215,7 +328,11 @@ func partOne(grid Grid, clusters []Cluster) int {
 func partTwo(grid Grid, clusters []Cluster) int {
 	total := 0
 	for _, c := range clusters {
-		total += c.Area() * c.Sides(grid)
+		typ := grid.At(c[0])
+		fmt.Printf("======[ cluster %s ]========\n", string(typ))
+		sides := c.Sides(grid)
+		fmt.Printf(" - cluster %s => sides: %d\n", string(typ), sides)
+		total += c.Area() * sides
 	}
 
 	return total
