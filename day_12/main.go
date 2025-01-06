@@ -205,6 +205,10 @@ func (c Cluster) Perimeter(g Grid) int {
 	return perimeter
 }
 
+// Reasonably janky cluster detecting.
+//
+// basically a recursive flood-fill that clusters all reachable coordinates
+// where all directly adjecent coordinates are reachable when of the same type.
 type Clusterer struct {
 	grid      Grid
 	available map[Vector]struct{}
