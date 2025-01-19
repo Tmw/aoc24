@@ -70,8 +70,12 @@ func partOne(robots []Robot) int {
 	countPerQuadrant := map[Quadrant]int{}
 
 	for _, r := range robots {
+		// find the final X and Y after N iterations in one go using modulo
 		x := ((r.Pos.X+r.Vel.X*iters)%mapWidth + mapWidth) % mapWidth
 		y := ((r.Pos.Y+r.Vel.Y*iters)%mapHeight + mapHeight) % mapHeight
+
+		// find to which quadrant the robot belongs based on its final X and Y
+		// coordinate and increment the counter that belongs to the quadrant.
 		q := determineQuadrant(x, y)
 		countPerQuadrant[q] += 1
 	}
