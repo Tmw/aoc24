@@ -61,9 +61,9 @@ func main() {
 	fmt.Println("answer part one =", partOne(robots))
 	fmt.Printf("part one took %+v\n", time.Since(start))
 
-	// start = time.Now()
-	// fmt.Println("answer part two =", cost(robots))
-	// fmt.Printf("part two took %+v", time.Since(start))
+	start = time.Now()
+	fmt.Println("answer part two =", partTwo(robots))
+	fmt.Printf("part two took %+v", time.Since(start))
 }
 
 func partOne(robots []Robot) int {
@@ -89,6 +89,45 @@ func partOne(robots []Robot) int {
 	}
 
 	return total
+}
+
+func partTwo(robots []Robot) int {
+	const (
+		MAX_FRAMES = 20_000
+		SEQ_MIN    = 10
+	)
+
+	for frame := range MAX_FRAMES {
+		bathroom := map[[2]int]struct{}{}
+		for _, r := range robots {
+			// find the final X and Y after N iterations in one go using modulo
+			x := ((r.Pos.X+r.Vel.X*frame)%mapWidth + mapWidth) % mapWidth
+			y := ((r.Pos.Y+r.Vel.Y*frame)%mapHeight + mapHeight) % mapHeight
+
+			bathroom[[2]int{x, y}] = struct{}{}
+		}
+
+		// detecting SEQ_MIN sequential robots on the X axis.
+		var seq = 0
+		for y := 0; y < mapHeight; y++ {
+			for x := 0; x < mapWidth; x++ {
+				k := [2]int{x, y}
+				if _, found := bathroom[k]; found {
+					seq++
+				} else {
+					seq = 0
+				}
+
+				if seq > SEQ_MIN {
+					return frame
+				}
+			}
+
+			seq = 0
+		}
+	}
+
+	return -1
 }
 
 func parseInput(input io.Reader) []Robot {
