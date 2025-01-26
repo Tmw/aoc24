@@ -142,6 +142,25 @@ func (a *Arena) IsTileMovableInDirection(pos Vector, direction Vector) bool {
 		return a.IsTileMovableInDirection(newPos, direction)
 	}
 
+	var (
+		directionLeftOrRight = direction == DirectionLeft || direction == DirectionRight
+		directionUpOrDown    = direction == DirectionUp || direction == DirectionDown
+		leftOrRightBoxHalf   = tile == TileMovableLeftHalf || tile == TileMovableRightHalf
+	)
+
+	if directionLeftOrRight && leftOrRightBoxHalf {
+		// with double width boxes, pushing left or right isn't different than
+		// pushing the single boxes left and right.
+		return a.IsTileMovableInDirection(newPos, direction)
+	}
+
+	if directionUpOrDown && leftOrRightBoxHalf {
+		// ok this might be more weird?
+		//
+		// if this is the left part find the right part (to the right of this one..)
+		// return a.IsTileMovableInDirection(left part newpos) && a.IsTileMovableInDirection(right part newpos)..
+	}
+
 	panic("reached invalid state")
 }
 
