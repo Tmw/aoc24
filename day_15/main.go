@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"time"
@@ -175,25 +176,33 @@ func (w World) CanMove(obj *Object, direction Vector) bool {
 }
 
 func (w *World) Clone() World {
+	objects := make([]*Object, 0, len(w.objects))
+	for _, o := range w.objects {
+		objects = append(objects, &Object{
+			width:  o.width,
+			height: o.height,
+			pos:    o.pos,
+			typ:    o.typ,
+		})
+	}
+
 	return World{
 		width:   w.width,
 		height:  w.height,
-		objects: slices.Clone(w.objects),
+		objects: objects,
 	}
 }
 
-// func (a *Arena) FindAllTilesOfType(typ Tile) []Vector {
-// 	var res []Vector
-// 	for idx, tile := range a.tiles {
-// 		if tile == typ {
-// 			x := idx % a.width
-// 			y := idx / a.width
-// 			res = append(res, Vector{X: x, Y: y})
-// 		}
-// 	}
-//
-// 	return res
-// }
+func (w *World) FindObjectsOfType(typ ObjTyp) []*Object {
+	var res []*Object
+	for _, obj := range w.objects {
+		if obj.typ == typ {
+			res = append(res, obj)
+		}
+	}
+
+	return res
+}
 
 type Robot struct {
 	Vector
@@ -225,25 +234,21 @@ const (
 
 func main() {
 	world, robot, instructions := parseInput(os.Stdin)
-	_ = instructions
 
-	world.Print(&robot)
-	// world2, robot2 := world.Clone(), robot.Clone()
+	world2, robot2 := world.Clone(), robot.Clone()
 
 	start := time.Now()
-	fmt.Println("answer part one =", partOne(&world, &robot, instructions))
+	fmt.Println("answer part one =", getAnswer(&world, &robot, instructions))
 	fmt.Printf("part one took %+v\n", time.Since(start))
 
-	// applyWidening(&world2, &robot2)
-	// world2.Print(robot2)
+	applyWidening(&world2, &robot2)
 
-	// start := time.Now()
-	// fmt.Println("answer part two =", partTwo(arenaB, robotB, instructions))
-	// fmt.Printf("part two took %+v", time.Since(start))
+	start = time.Now()
+	fmt.Println("answer part two =", getAnswer(&world2, &robot2, instructions))
+	fmt.Printf("part two took %+v", time.Since(start))
 }
 
 func applyWidening(w *World, r *Robot) {
-	_ = r
 	const wideningFactor = 2
 
 	w.width *= wideningFactor
@@ -257,12 +262,6 @@ func applyWidening(w *World, r *Robot) {
 
 func runInstructions(world *World, robot *Robot, instructions []Instruction) {
 	for _, instr := range instructions {
-		fmt.Println("-------------------------------")
-		world.Print(robot)
-		fmt.Println("instruction = ", string(instr))
-
-		// time.Sleep(200 * time.Millisecond)
-
 		direction := vectorForInstruction(instr)
 		newPos := robot.Vector.Add(direction)
 
@@ -270,19 +269,13 @@ func runInstructions(world *World, robot *Robot, instructions []Instruction) {
 			continue
 		}
 
-		// TODO: Add method for moving the robot? Expose through Vector?
-		// should Robot be just another Object in the world? :idea:
 		newRobot := &Object{pos: newPos, width: 1, height: 1}
 		if !world.CanMove(newRobot, direction) {
-			fmt.Println("unable to move, continuing..")
 			continue
 		}
 
-		// TODO: Let's make it work, then improve:
-		// - perhaps CanMove can return a bool and a list of objects to move.
-		// - then calling move individually on them does the trick?
 		objsInPath := world.FindCollisions(newRobot, direction, []*Object{})
-		for _, o := range objsInPath {
+		for _, o := range unique(objsInPath) {
 			o.MoveInDirection(direction)
 		}
 
@@ -290,36 +283,16 @@ func runInstructions(world *World, robot *Robot, instructions []Instruction) {
 	}
 }
 
-func partOne(world *World, robot *Robot, instructions []Instruction) int {
-	applyWidening(world, robot)
+func getAnswer(world *World, robot *Robot, instructions []Instruction) int {
 	runInstructions(world, robot, instructions)
-	fmt.Println("final state of the world:")
-	world.Print(robot)
+	boxPositions := world.FindObjectsOfType(ObjTypeBox)
+	sum := 0
+	for _, o := range boxPositions {
+		sum += o.pos.Y*100 + o.pos.X
+	}
 
-	// boxPositions := world.FindAllTilesOfType(TileMovable)
-	// sum := 0
-	// for _, p := range boxPositions {
-	// 	sum += p.Y*100 + p.X
-	// }
-
-	var sum int
 	return sum
 }
-
-//
-// func partTwo(arena Arena, robot Robot, instructions []Instruction) int {
-// 	runInstructions(arena, robot, instructions)
-//
-// 	// from the example it looked like only the distance from the left half was measured,
-// 	// ignoring the "closest edge" wording.
-// 	boxPositions := arena.FindAllTilesOfType(TileMovableLeftHalf)
-// 	sum := 0
-// 	for _, p := range boxPositions {
-// 		sum += p.Y*100 + p.X
-// 	}
-//
-// 	return sum
-// }
 
 type ParseType int
 
@@ -399,4 +372,13 @@ func parseInput(input io.Reader) (World, Robot, []Instruction) {
 	}
 
 	return world, robot, instructions
+}
+
+func unique[T comparable](input []T) []T {
+	unique := make(map[T]struct{})
+	for _, item := range input {
+		unique[item] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(unique))
 }
