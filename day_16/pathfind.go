@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"math"
 	"slices"
 
 	"github.com/tmw/go-prioqueue"
@@ -28,7 +28,7 @@ type Candidate struct {
 
 type PathFinder struct {
 	PathFinderOpts
-	visited map[Vector]struct{}
+	visited map[Vector]Candidate
 	queue   prioqueue.PrioQueue[Candidate, Vector]
 }
 
@@ -41,16 +41,14 @@ type PathFinderOpts struct {
 func NewPathFinder(opts PathFinderOpts) PathFinder {
 	return PathFinder{
 		PathFinderOpts: opts,
-		visited:        make(map[Vector]struct{}),
+		visited:        make(map[Vector]Candidate),
 		queue: prioqueue.NewPrioQueue(
 			compareCandidate,
 			hashCandidate,
 		),
 	}
 }
-
-func (p *PathFinder) Path(start Vector, yield func(c Candidate, path []Vector)) []Vector {
-	// push initial position
+func (p *PathFinder) Path(start Vector) (int, []Vector) {
 	initialCost := p.HeuristicFn(start)
 	p.queue.Push(Candidate{
 		loc:  start,
@@ -62,28 +60,22 @@ func (p *PathFinder) Path(start Vector, yield func(c Candidate, path []Vector)) 
 
 	for {
 		c, more := p.queue.Pop()
-		if yield != nil {
-			yield(c, backtrack(c))
-		}
-
 		if !more {
 			break
 		}
 
 		if p.ReachedFinishFn(c.loc) {
-			return backtrack(c)
+			return c.cost, backtrack(c)
 		}
 
 		for _, n := range p.NeighboursFn(c.loc) {
-
 			dist := c.dist + 1
 
-			turnPenalty := 1000
-			if c.loc.Add(c.dir) == n {
-				turnPenalty = 0
+			if c.loc.Add(c.dir) != n {
+				dist += 1000
 			}
 
-			cost := c.cost + p.HeuristicFn(n) + dist + turnPenalty
+			cost := p.HeuristicFn(n) + dist
 			candidate := Candidate{
 				loc:  n,
 				dist: dist,
@@ -97,8 +89,6 @@ func (p *PathFinder) Path(start Vector, yield func(c Candidate, path []Vector)) 
 					return c
 				}
 
-				fmt.Printf("updating candidate = %+v, newCost = %d\n", c, candidate.cost)
-
 				c.cost = candidate.cost
 				c.dist = candidate.dist
 				c.via = candidate.via
@@ -107,7 +97,9 @@ func (p *PathFinder) Path(start Vector, yield func(c Candidate, path []Vector)) 
 				return c
 			})
 
-			if _, visited := p.visited[n]; visited {
+			// if neighbour already on processed list, consider re-adding
+			// but only if its distance from start is lower.
+			if p, found := p.visited[n]; found && p.cost <= candidate.cost {
 				continue
 			}
 
@@ -118,10 +110,10 @@ func (p *PathFinder) Path(start Vector, yield func(c Candidate, path []Vector)) 
 
 		}
 
-		p.visited[c.loc] = struct{}{}
+		p.visited[c.loc] = c
 	}
 
-	return []Vector{}
+	return math.MaxInt, []Vector{}
 }
 
 func backtrack(c Candidate) []Vector {

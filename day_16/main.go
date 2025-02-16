@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"os"
-	"slices"
 	"strings"
 	"time"
 )
@@ -87,8 +85,6 @@ func (g *Grid) Print(start, end, reindeer Vector) {
 func (g *Grid) PrintWithPath(start, end Vector, path []Vector) {
 	res := make([]rune, g.width*g.height)
 
-	// draw "normal" map with start, end and current pos of reindeer?..
-	// and all the other tiles as open.
 	for y := 0; y < g.height; y++ {
 		for x := 0; x < g.width; x++ {
 			pos := Vector{X: x, Y: y}
@@ -179,6 +175,12 @@ func (g *Grid) WalkableTilesSurrounding(pos Vector) []Vector {
 func main() {
 	grid, start, end := parseInput(os.Stdin)
 
+	startTime := time.Now()
+	fmt.Println("part one = ", partOne(grid, start, end))
+	fmt.Println("part one took = ", time.Since(startTime))
+}
+
+func partOne(grid Grid, start, end Vector) int {
 	pf := NewPathFinder(PathFinderOpts{
 		NeighboursFn: grid.WalkableTilesSurrounding,
 		HeuristicFn: func(l Vector) int {
@@ -189,13 +191,8 @@ func main() {
 		},
 	})
 
-	path := pf.Path(start, func(c Candidate, path []Vector) {
-		fmt.Printf("candidate = %+v\n", c)
-		grid.PrintWithPath(start, end, path)
-		time.Sleep(200 * time.Millisecond)
-	})
-	fmt.Println("final path:", costForPath(path))
-	grid.PrintWithPath(start, end, path)
+	cost, _ := pf.Path(start)
+	return cost
 }
 
 func manhattan(a, b Vector) int {
@@ -204,67 +201,6 @@ func manhattan(a, b Vector) int {
 
 func abs(a int) int {
 	return int(math.Abs(float64(a)))
-}
-
-type Set[K comparable] struct {
-	items   []K
-	present map[K]struct{}
-}
-
-func NewSet[K comparable]() Set[K] {
-	return Set[K]{
-		items:   make([]K, 0),
-		present: make(map[K]struct{}),
-	}
-}
-
-func (s *Set[K]) Insert(item K) bool {
-	if _, present := s.present[item]; present {
-		// did not insert, was already present
-		return false
-	}
-
-	s.present[item] = struct{}{}
-	s.items = append(s.items, item)
-
-	return true
-}
-
-func (s *Set[K]) Includes(item K) bool {
-	_, present := s.present[item]
-	return present
-}
-
-func (s *Set[K]) Slice() []K {
-	return s.items
-}
-
-func (s *Set[K]) Clone() Set[K] {
-	return Set[K]{
-		items:   slices.Clone(s.items),
-		present: maps.Clone(s.present),
-	}
-}
-
-func costForPath(path []Vector) int {
-	dir := DirectionEast
-	prev := path[0]
-	zeroDir := Vector{}
-
-	// base cost eq. length of the path
-	cost := len(path) - 1
-
-	// then apply penalty for each turn
-	for _, loc := range path {
-		newDir := loc.Sub(prev)
-		if dir != newDir && newDir != zeroDir {
-			cost += 1000
-			dir = newDir
-		}
-		prev = loc
-	}
-
-	return cost
 }
 
 func parseInput(input io.Reader) (Grid, Vector, Vector) {

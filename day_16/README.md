@@ -11,3 +11,4 @@ go run . < input.txt
 - It finds the finish three times rather quick, but then seems to hang there for forever.
 - let's first try to improve the lookup speed for already visited nodes (don't think that's a major win, but who knows)
 - re-implemented this using A*, both examples return the correct path and cost however the real input is failing me again.
+- turns out i had a bug in the cost calculation logic that would only show on the real input
