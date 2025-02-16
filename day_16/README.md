@@ -3,7 +3,11 @@
 ## Run
 
 ```console
-go run . < input.txt
+make run-example
+
+# or
+
+make run-input
 ```
 
 ## Notes
