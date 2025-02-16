@@ -98,7 +98,7 @@ func (p *PathFinder) Path(start Vector) (int, []Vector) {
 			})
 
 			// if neighbour already on processed list, consider re-adding
-			// but only if its distance from start is lower.
+			// but only if its cost is lower
 			if p, found := p.visited[n]; found && p.cost <= candidate.cost {
 				continue
 			}
